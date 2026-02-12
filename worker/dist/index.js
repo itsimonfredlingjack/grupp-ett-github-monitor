@@ -59,7 +59,7 @@ var src_default = {
     if (path === "/" && request.method === "GET") {
       return json({
         message: "Grupp Ett Monitor (Cloudflare Worker)",
-        dashboard: "https://grupp-ett-monitor.pages.dev",
+        dashboard: "https://ralph-monitor.pages.dev/monitor",
         api: "/api/monitor/state"
       });
     }

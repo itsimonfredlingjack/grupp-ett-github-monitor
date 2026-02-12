@@ -18,7 +18,10 @@ from typing import Optional
 # Configuration — supports both env var names for backwards compat
 MONITOR_URL = os.environ.get(
     "MONITOR_URL",
-    os.environ.get("MONITOR_API_URL", "http://localhost:5000"),
+    os.environ.get(
+        "MONITOR_API_URL",
+        "https://grupp-ett-monitor-api.fredlingjacksimon.workers.dev",
+    ),
 )
 MONITOR_ENABLED = os.environ.get("MONITOR_ENABLED", "1") == "1"
 API_SECRET = os.environ.get("MONITOR_API_SECRET", "")
@@ -138,7 +141,7 @@ if __name__ == "__main__":
         node = sys.argv[1]
         message = sys.argv[2] if len(sys.argv) > 2 else "Test update"
         result = send_update(node, "active", message)
-        print(f"Sent to {MONITOR_URL}: node={node} → {'OK' if result else 'FAILED'}")
+        print(f"Sent to {MONITOR_URL}: node={node} \u2192 {'OK' if result else 'FAILED'}")
     else:
         print(f"Monitor client targeting: {MONITOR_URL}")
         print(f"Enabled: {MONITOR_ENABLED}")

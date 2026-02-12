@@ -1,15 +1,15 @@
 /**
- * Agentic Loop Monitor — Cloudflare Worker
+ * Agentic Loop Monitor \u2014 Cloudflare Worker
  *
  * REST API that mirrors the Flask monitor endpoints.
  * State is persisted in KV. Frontend polls every 2s.
  *
  * Endpoints:
- *   GET  /api/monitor/state   — current state snapshot
- *   POST /api/monitor/state   — update node (from hooks)
- *   POST /api/monitor/task    — update task info
- *   POST /api/monitor/reset   — reset all state
- *   GET  /health              — health check
+ *   GET  /api/monitor/state   \u2014 current state snapshot
+ *   POST /api/monitor/state   \u2014 update node (from hooks)
+ *   POST /api/monitor/task    \u2014 update task info
+ *   POST /api/monitor/reset   \u2014 reset all state
+ *   GET  /health              \u2014 health check
  */
 
 export interface Env {
@@ -108,7 +108,7 @@ export default {
     if (path === "/" && request.method === "GET") {
       return json({
         message: "Grupp Ett Monitor (Cloudflare Worker)",
-        dashboard: "https://grupp-ett-monitor.pages.dev",
+        dashboard: "https://ralph-monitor.pages.dev/monitor",
         api: "/api/monitor/state",
       });
     }
