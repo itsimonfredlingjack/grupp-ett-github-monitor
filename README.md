@@ -1,60 +1,102 @@
 # grupp-ett-github-monitor
 
-Real-time monitoring dashboard for the Claude Code / Ralph agentic loop. Tracks workflow nodes (JIRA, CLAUDE, GITHUB, JULES, ACTIONS) and streams updates to a WebSocket-powered UI.
+Real-time monitoring dashboard for the Claude Code / Ralph agentic loop. Tracks workflow nodes (JIRA, CLAUDE, GITHUB, JULES, ACTIONS) and streams updates to a visual dashboard.
 
-Originally part of [grupp-ett-github](https://github.com/itsimonfredlingjack/grupp-ett-github); this repo contains everything needed to run the monitor standalone or embed it elsewhere.
+Originally part of [grupp-ett-github](https://github.com/itsimonfredlingjack/grupp-ett-github); this repo contains everything needed to run the monitor standalone.
 
-## Quick start
+## Architecture
 
-```bash
-python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-python app.py
+```
+┌─────────────────┐     POST /api/monitor/state     ┌──────────────────────┐
+│  Claude Code     │ ──────────────────────────────► │  Cloudflare Worker   │
+│  (hooks)         │                                 │  (REST API + KV)     │
+└─────────────────┘                                 └──────────┬───────────┘
+                                                               │
+                                                    GET /api/monitor/state
+                                                        (poll every 2s)
+                                                               │
+                                                    ┌──────────▼───────────┐
+                                                    │  Cloudflare Pages    │
+                                                    │  (monitor.html)      │
+                                                    └──────────────────────┘
 ```
 
-- **API:** http://localhost:5000  
-- **Dashboard:** http://localhost:5000/static/monitor.html  
-- **Health:** http://localhost:5000/health  
+## Deployment options
 
-## What’s included
+### Option A: Cloudflare Workers + Pages (recommended)
+
+Serverless, always-on, free tier. See [DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md).
+
+```bash
+# 1. Deploy Worker (API)
+cd worker && npm install && npm run kv:create
+# → paste KV namespace ID into wrangler.toml
+npm run deploy
+
+# 2. Deploy Pages (dashboard)
+npx wrangler pages deploy ./pages --project-name=grupp-ett-monitor
+
+# 3. Point hooks at the Worker
+export MONITOR_URL=https://grupp-ett-monitor-api.<you>.workers.dev
+```
+
+### Option B: Local Flask (development)
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+# Dashboard: http://localhost:5000/static/monitor.html
+```
+
+## What's included
 
 | Path | Description |
 |------|-------------|
-| `app.py` | Minimal Flask app (monitor API + static files) |
-| `monitor/` | Monitor service and REST/WebSocket routes |
-| `static/` | `monitor.html` dashboard, Ralph.mp3, background/center images |
-| `claude-monitor-wrapper.sh` | Wraps CLI output and POSTs state updates from pattern matching |
-| `hooks/` | `monitor_client.py` + `monitor_hook.py` for Claude/Codex pre-tool-use hooks |
+| `worker/` | Cloudflare Worker (TypeScript) — REST API with KV state |
+| `pages/` | Static dashboard for Cloudflare Pages (polling-based) |
+| `app.py` | Flask app for local development (SocketIO-based) |
+| `monitor/` | Monitor service and routes (Flask) |
+| `static/` | Original dashboard + assets (SocketIO version) |
+| `hooks/` | `monitor_client.py` + `monitor_hook.py` for Claude Code hooks |
+| `claude-monitor-wrapper.sh` | CLI wrapper that POSTs state from pattern matching |
 
 ## API
 
-- `GET /api/monitor/state` — current state (nodes, event log, task info)
+All endpoints are identical between Flask and Worker:
+
+- `GET /api/monitor/state` — current state snapshot
 - `POST /api/monitor/state` — update node: `{"node":"claude","state":"active","message":"..."}`
-- `POST /api/monitor/task` — set task: `{"title":"...","status":"running"}` or `{"action":"start","task_id":"GE-1","title":"..."}`
-- `POST /api/monitor/reset` — reset all state  
+- `POST /api/monitor/task` — set task: `{"action":"start","task_id":"GE-1","title":"..."}`
+- `POST /api/monitor/reset` — reset all state
+- `GET /health` — health check
 
-WebSocket namespace: `/monitor` (Socket.IO). Events: `state_update`, `request_state`.
+## Using the hooks
 
-## Using the wrapper
+Copy `hooks/monitor_client.py` and `hooks/monitor_hook.py` into `.claude/hooks/`.
 
 ```bash
-chmod +x claude-monitor-wrapper.sh
-./claude-monitor-wrapper.sh echo "Writing to app.py"
-# or wrap a real command:
-./claude-monitor-wrapper.sh claude "Implement feature X"
+# Local mode (default)
+export MONITOR_URL=http://localhost:5000
+
+# Cloud mode (Cloudflare Worker)
+export MONITOR_URL=https://grupp-ett-monitor-api.<you>.workers.dev
+
+# Optional: API secret for write protection
+export MONITOR_API_SECRET=your-secret-here
+
+# Disable monitoring
+export MONITOR_ENABLED=0
 ```
 
-Wrapper logs: `~/.claude-monitor.log`. Set `MONITOR_API_URL` if the server is not at `http://localhost:5000`.
+## Dashboard query params
 
-## Using the hooks (Claude / Codex)
+The Pages dashboard (`monitor.html`) supports URL params:
 
-Copy `hooks/monitor_client.py` and `hooks/monitor_hook.py` into your project’s `.claude/hooks/` (or equivalent). Configure the PreToolUse hook to run `python3 .claude/hooks/monitor_hook.py`. Ensure the monitor server is running and set `MONITOR_URL` (e.g. `http://localhost:5000`) if needed. `MONITOR_ENABLED=0` disables sending.
+- `?api=https://your-worker.workers.dev` — override API endpoint
+- `?poll=1000` — polling interval in ms (default: 2000)
 
-## Deployment
-
-- **Cloudflare Tunnel:** Point a tunnel at `localhost:5000` and use the public URL as the dashboard (e.g. `https://gruppett.fredlingautomation.dev/static/monitor.html`).
-- **Production server:** e.g. `gunicorn --worker-class eventlet -w 1 app:app` (Flask-SocketIO needs a single process or sticky sessions).
+Example: `https://grupp-ett-monitor.pages.dev/monitor.html?api=https://grupp-ett-monitor-api.simon.workers.dev`
 
 ## License
 

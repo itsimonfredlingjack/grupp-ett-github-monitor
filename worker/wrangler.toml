@@ -1,0 +1,12 @@
+name = "grupp-ett-monitor-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# KV namespace binding
+[[kv_namespaces]]
+binding = "MONITOR_KV"
+id = "7350751ba34148528c37c8a2c16f08c5"
+
+# Optional: API secret for write protection
+# [vars]
+# API_SECRET = ""  # Or use: wrangler secret put API_SECRET
