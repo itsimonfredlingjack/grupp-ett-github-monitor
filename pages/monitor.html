@@ -747,10 +747,10 @@
         animation: slideDownBounce 0.6s ease-out, pulseGlow 2s ease-in-out infinite;
     ">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 1.8rem; animation: soundPulse 1.5s ease-in-out infinite; display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">&#x1F50A;</span>
+            <span style="font-size: 1.8rem; animation: soundPulse 1.5s ease-in-out infinite; display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🔊</span>
             <div style="line-height: 1.4;">
-                <div style="font-size: 1rem; margin-bottom: 2px;">Klicka f&ouml;r ljud</div>
-                <div style="font-size: 0.7rem; opacity: 0.8; font-weight: 400;">Ralph-ljudet aktiveras n&auml;r du klickar</div>
+                <div style="font-size: 1rem; margin-bottom: 2px;">Klicka för ljud</div>
+                <div style="font-size: 0.7rem; opacity: 0.8; font-weight: 400;">Ralph-ljudet aktiveras när du klickar</div>
             </div>
         </div>
     </div>
@@ -876,11 +876,11 @@
 
     <script>
         const nodes = [
-            { id: 'jira', icon: '\u{1F4CB}', label: 'JIRA', angle: 270, color: 'purple', cssColor: '#e55ca0' },
-            { id: 'claude', icon: '\u{1F916}', label: 'CLAUDE', angle: 342, color: 'cyan', cssColor: '#4db8e8' },
-            { id: 'github', icon: '\u{1F4E4}', label: 'GITHUB', angle: 54, color: 'blue', cssColor: '#5a9fd4' },
-            { id: 'jules', icon: '\u{1F468}\u200D\u{1F4BB}', label: 'JULES', angle: 126, color: 'pink', cssColor: '#ff6b9d' },
-            { id: 'actions', icon: '\u2699\uFE0F', label: 'ACTIONS', angle: 198, color: 'green', cssColor: '#2d8b57' }
+            { id: 'jira', icon: '📋', label: 'JIRA', angle: 270, color: 'purple', cssColor: '#e55ca0' },
+            { id: 'claude', icon: '🤖', label: 'CLAUDE', angle: 342, color: 'cyan', cssColor: '#4db8e8' },
+            { id: 'github', icon: '📤', label: 'GITHUB', angle: 54, color: 'blue', cssColor: '#5a9fd4' },
+            { id: 'jules', icon: '👨‍💻', label: 'JULES', angle: 126, color: 'pink', cssColor: '#ff6b9d' },
+            { id: 'actions', icon: '⚙️', label: 'ACTIONS', angle: 198, color: 'green', cssColor: '#2d8b57' }
         ];
 
         const nodePositions = [
@@ -1027,6 +1027,7 @@
                 const elapsed = currentTime - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 const easedProgress = 1 - Math.pow(1 - progress, 3);
+
                 const pos = getPointOnQuadraticBezier(fromPos, controlPoint, centerPos, easedProgress);
                 particle.setAttribute('transform', 'translate(' + pos.x + ', ' + pos.y + ')');
 
@@ -1093,9 +1094,10 @@
             return nodes.findIndex(function(n) { return n.id === nodeId; });
         }
 
-        // Polling connection (Cloudflare Workers)
+        // Polling configuration - poll Worker URL directly
+        const WORKER_URL = 'https://grupp-ett-monitor-api.fredlingjacksimon.workers.dev';
         const urlParams = new URLSearchParams(window.location.search);
-        const API_BASE = urlParams.get('api') || (window.location.origin !== 'null' ? window.location.origin : 'http://localhost:5000');
+        const API_BASE = urlParams.get('api') || WORKER_URL;
         const POLL_INTERVAL = parseInt(urlParams.get('poll') || '2000', 10);
 
         let lastStateHash = '';
@@ -1120,12 +1122,12 @@
                 }
 
                 document.getElementById('stepDescription').textContent =
-                    state.current_node ? document.getElementById('stepDescription').textContent : 'Connected \u2014 polling...';
+                    state.current_node ? document.getElementById('stepDescription').textContent : 'Connected — polling...';
             } catch (err) {
                 pollErrors++;
                 console.warn('Poll error (' + pollErrors + '/' + MAX_POLL_ERRORS + '):', err.message);
                 if (pollErrors >= MAX_POLL_ERRORS) {
-                    document.getElementById('stepDescription').textContent = 'Disconnected \u2014 API unreachable (' + API_BASE + ')';
+                    document.getElementById('stepDescription').textContent = 'Disconnected — API unreachable (' + API_BASE + ')';
                 } else {
                     document.getElementById('stepDescription').textContent = 'Reconnecting...';
                 }
