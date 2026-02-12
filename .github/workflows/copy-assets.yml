@@ -1,6 +1,10 @@
 name: Copy Static Assets to Pages
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/copy-assets.yml'
   workflow_dispatch:
 
 jobs:
@@ -11,12 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Check if assets need copying
+        id: check
+        run: |
+          NEED_COPY=false
+          if [ ! -f pages/Ralph.mp3 ]; then NEED_COPY=true; fi
+          if [ ! -f pages/center-image.png ]; then NEED_COPY=true; fi
+          echo "need_copy=$NEED_COPY" >> $GITHUB_OUTPUT
+      
       - name: Copy binary assets
+        if: steps.check.outputs.need_copy == 'true'
         run: |
           cp static/Ralph.mp3 pages/Ralph.mp3
           cp static/center-image.png pages/center-image.png
       
       - name: Commit and push
+        if: steps.check.outputs.need_copy == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
