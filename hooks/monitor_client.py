@@ -35,13 +35,16 @@ NODE_ACTIONS = "actions"
 
 
 def _headers() -> dict[str, str]:
-    h = {"Content-Type": "application/json"}
+    h = {
+        "Content-Type": "application/json",
+        "User-Agent": "GruppEtt-Monitor/1.0",
+    }
     if API_SECRET:
         h["Authorization"] = f"Bearer {API_SECRET}"
     return h
 
 
-def _post(path: str, payload: dict, timeout: float = 2.0) -> bool:
+def _post(path: str, payload: dict, timeout: float = 5.0) -> bool:
     """POST JSON to monitor API. Fails silently."""
     if not MONITOR_ENABLED:
         return False
@@ -63,7 +66,7 @@ def send_update(
     node: str,
     state: str = "active",
     message: str = "",
-    timeout: float = 2.0,
+    timeout: float = 5.0,
 ) -> bool:
     """Send a node state update to the monitor."""
     return _post(
@@ -73,7 +76,7 @@ def send_update(
     )
 
 
-def start_task(task_id: str, title: str, timeout: float = 2.0) -> bool:
+def start_task(task_id: str, title: str, timeout: float = 5.0) -> bool:
     """Signal that a new task is starting."""
     return _post(
         "/api/monitor/task",
@@ -82,7 +85,7 @@ def start_task(task_id: str, title: str, timeout: float = 2.0) -> bool:
     )
 
 
-def complete_task(timeout: float = 2.0) -> bool:
+def complete_task(timeout: float = 5.0) -> bool:
     """Signal that the current task is complete."""
     return _post("/api/monitor/task", {"action": "complete"}, timeout)
 
@@ -141,7 +144,7 @@ if __name__ == "__main__":
         node = sys.argv[1]
         message = sys.argv[2] if len(sys.argv) > 2 else "Test update"
         result = send_update(node, "active", message)
-        print(f"Sent to {MONITOR_URL}: node={node} \u2192 {'OK' if result else 'FAILED'}")
+        print(f"Sent to {MONITOR_URL}: node={node} → {'OK' if result else 'FAILED'}")
     else:
         print(f"Monitor client targeting: {MONITOR_URL}")
         print(f"Enabled: {MONITOR_ENABLED}")
