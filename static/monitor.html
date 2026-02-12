@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Loop Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a5fb4;
+            --bg-secondary: #87ceeb;
+            --accent-blue: #00d4ff;
+            --accent-orange: #ff8c42;
+            --accent-green: #00ff9d;
+            --text-primary: #000000;
+            --text-secondary: #333333;
+            --glow-blue: rgba(0, 212, 255, 0.4);
+            --glow-orange: rgba(255, 140, 66, 0.4);
+
+            /* Node colors - Simpsons Christmas style */
+            --node-purple: #e55ca0;
+            --node-cyan: #4db8e8;
+            --node-blue: #5a9fd4;
+            --node-green: #2d8b57;
+            --node-pink: #ff6b9d;
+            --node-teal: #47c9af;
+            --simpson-yellow: #ffd90f;
+            --simpson-pink: #f7a6d8;
+            --simpson-wall: #e892c5;
+            --simpson-floor: #2d8b57;
+            --simpson-skin: #fed90f;
+
+            /* Glows - brighter for cartoon effect */
+            --glow-purple: rgba(229, 92, 160, 0.8);
+            --glow-cyan: rgba(77, 184, 232, 0.8);
+            --glow-blue: rgba(90, 159, 212, 0.8);
+            --glow-green: rgba(45, 139, 87, 0.8);
+            --glow-pink: rgba(255, 107, 157, 0.8);
+            --glow-teal: rgba(71, 201, 175, 0.8);
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(180deg, #ff9933 0%, #ff8c1a 100%);
+            color: var(--text-primary);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Background image overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('background.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: -1;
+        }
+
+        /* Cartoon decorative elements background */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(circle 80px at 10% 15%, rgba(255, 217, 15, 0.15), transparent),
+                radial-gradient(circle 100px at 85% 20%, rgba(77, 184, 232, 0.15), transparent),
+                radial-gradient(circle 90px at 50% 80%, rgba(45, 139, 87, 0.15), transparent),
+                radial-gradient(circle 70px at 90% 75%, rgba(229, 92, 160, 0.15), transparent);
+            z-index: 0;
+        }
+
+        @keyframes cloudFloat {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(30px); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            padding: 100px 40px 40px 40px;
+            gap: 60px;
+            align-items: center;
+            justify-content: center;
+            transform: scale(1.05) translateX(-2cm);
+            transform-origin: center center;
+        }
+
+        /* Header */
+        header {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--simpson-yellow);
+            border-radius: 8px;
+            border: 4px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 0 #000, 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo-icon::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #000;
+            border-radius: 4px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #000;
+            text-shadow: 3px 3px 0 var(--simpson-yellow),
+                         -1px -1px 0 #000,
+                         1px -1px 0 #000,
+                         -1px 1px 0 #000,
+                         1px 1px 0 #000;
+        }
+
+        .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-top: -5px;
+        }
+
+        .nav {
+            display: none;
+        }
+
+        /* Main visualization area */
+        .visualization {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .loop-container {
+            position: relative;
+            width: 650px;
+            height: 650px;
+        }
+
+        /* Center image placeholder */
+        .center-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        .center-image img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+        }
+
+        .center-image-placeholder {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: #000;
+            text-align: center;
+            padding: 20px;
+            font-weight: 600;
+            background: var(--simpson-yellow);
+            border: 4px solid #000;
+            border-radius: 50%;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 0 #000;
+        }
+
+        .orbital-node[data-color="purple"].active .node-label {
+            color: #000;
+        }
+
+        .orbital-node[data-color="cyan"].active .node-label {
+            color: #000;
+        }
+
+        .orbital-node[data-color="blue"].active .node-label {
+            color: #000;
+        }
+
+        .orbital-node[data-color="green"].active .node-label {
+            color: #000;
+        }
+
+        .orbital-node[data-color="pink"].active .node-label {
+            color: #000;
+        }
+
+        .orbital-node[data-color="teal"].active .node-label {
+            color: #000;
+        }
+
+        /* Circular path - REMOVED: Was causing duplicate visual with SVG connection paths */
+
+        /* Moving dot */
+        .moving-dot {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, var(--node-purple), var(--node-cyan));
+            border-radius: 50%;
+            border: 4px solid #000;
+            top: 50%;
+            left: 50%;
+            z-index: 10;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.8), 0 5px 0 #000;
+            opacity: 1;
+            transition: opacity 0.4s ease, transform 0.4s ease, background 0.6s ease, box-shadow 0.6s ease;
+            transform: translate(-50%, -50%);
+        }
+
+        .moving-dot.hidden {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.3);
+        }
+
+        .moving-dot::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            border-radius: 50%;
+            animation: dotPulse 2s ease-in-out infinite;
+        }
+
+        .moving-dot::after {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            top: -25%;
+            left: -25%;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.4), rgba(0, 255, 157, 0.2) 50%, transparent 70%);
+            border-radius: 50%;
+            animation: dotGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes dotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+        }
+
+        @keyframes dotGlow {
+            0%, 100% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
+
+        /* Orbital nodes */
+        .orbital-node {
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            background: #fff;
+            border: 5px solid #000;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+            z-index: 3;
+            box-shadow: 0 6px 0 #000, 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .orbital-node.active {
+            z-index: 4;
+            border-width: 7px;
+            /* Noden förblir stilla - endast visuella effekter */
+        }
+
+        /* Individual node colors - cartoon style */
+        .orbital-node[data-color="purple"] {
+            background: linear-gradient(135deg, #e55ca0, #f588bb);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="purple"].active {
+            --glow-color: var(--glow-purple);
+            --glow-color-faded: rgba(229, 92, 160, 0.5);
+            box-shadow: 0 0 40px var(--glow-purple), 0 0 80px var(--glow-purple), 0 0 120px rgba(229, 92, 160, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        .orbital-node[data-color="cyan"] {
+            background: linear-gradient(135deg, #4db8e8, #7dcef5);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="cyan"].active {
+            --glow-color: var(--glow-cyan);
+            --glow-color-faded: rgba(77, 184, 232, 0.5);
+            box-shadow: 0 0 40px var(--glow-cyan), 0 0 80px var(--glow-cyan), 0 0 120px rgba(77, 184, 232, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        .orbital-node[data-color="blue"] {
+            background: linear-gradient(135deg, #5a9fd4, #85b8e0);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="blue"].active {
+            --glow-color: var(--glow-blue);
+            --glow-color-faded: rgba(90, 159, 212, 0.5);
+            box-shadow: 0 0 40px var(--glow-blue), 0 0 80px var(--glow-blue), 0 0 120px rgba(90, 159, 212, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        .orbital-node[data-color="green"] {
+            background: linear-gradient(135deg, #2d8b57, #4aa572);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="green"].active {
+            --glow-color: var(--glow-green);
+            --glow-color-faded: rgba(45, 139, 87, 0.5);
+            box-shadow: 0 0 40px var(--glow-green), 0 0 80px var(--glow-green), 0 0 120px rgba(45, 139, 87, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        .orbital-node[data-color="pink"] {
+            background: linear-gradient(135deg, #ff6b9d, #ff8fb5);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="pink"].active {
+            --glow-color: var(--glow-pink);
+            --glow-color-faded: rgba(255, 107, 157, 0.5);
+            box-shadow: 0 0 40px var(--glow-pink), 0 0 80px var(--glow-pink), 0 0 120px rgba(255, 107, 157, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        .orbital-node[data-color="teal"] {
+            background: linear-gradient(135deg, #47c9af, #6ed9c3);
+            border-color: #000;
+        }
+
+        .orbital-node[data-color="teal"].active {
+            --glow-color: var(--glow-teal);
+            --glow-color-faded: rgba(71, 201, 175, 0.5);
+            box-shadow: 0 0 40px var(--glow-teal), 0 0 80px var(--glow-teal), 0 0 120px rgba(71, 201, 175, 0.5), 0 8px 0 #000;
+            animation: activeNodePulse 1.5s ease-in-out infinite, glowIntensity 2s ease-in-out infinite;
+        }
+
+        /* Pulsing glow animation for active nodes */
+        @keyframes activeNodePulse {
+            0%, 100% {
+                filter: brightness(1);
+            }
+            50% {
+                filter: brightness(1.15);
+            }
+        }
+
+        /* Pulsing glow intensity for active nodes */
+        @keyframes glowIntensity {
+            0%, 100% {
+                box-shadow:
+                    0 0 40px var(--glow-color),
+                    0 0 80px var(--glow-color),
+                    0 0 120px var(--glow-color-faded),
+                    0 8px 0 #000;
+            }
+            50% {
+                box-shadow:
+                    0 0 60px var(--glow-color),
+                    0 0 100px var(--glow-color),
+                    0 0 150px var(--glow-color-faded),
+                    0 8px 0 #000;
+            }
+        }
+
+        /* Pulsing ring pseudo-element for active nodes */
+        .orbital-node.active::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 140%;
+            height: 140%;
+            transform: translate(-50%, -50%);
+            border: 4px solid currentColor;
+            border-radius: 50%;
+            opacity: 0;
+            animation: pulsingRing 1.5s ease-out infinite;
+            pointer-events: none;
+        }
+
+        .orbital-node[data-color="purple"].active::after { border-color: var(--node-purple); }
+        .orbital-node[data-color="cyan"].active::after { border-color: var(--node-cyan); }
+        .orbital-node[data-color="blue"].active::after { border-color: var(--node-blue); }
+        .orbital-node[data-color="green"].active::after { border-color: var(--node-green); }
+        .orbital-node[data-color="pink"].active::after { border-color: var(--node-pink); }
+        .orbital-node[data-color="teal"].active::after { border-color: var(--node-teal); }
+
+        /* Second ripple ring for dual ripple effect */
+        .orbital-node.active::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            transform: translate(-50%, -50%);
+            border: 3px solid currentColor;
+            border-radius: 50%;
+            opacity: 0;
+            animation: pulsingRing 1.5s ease-out infinite 0.75s;
+            pointer-events: none;
+        }
+
+        .orbital-node[data-color="purple"].active::before { border-color: var(--node-purple); }
+        .orbital-node[data-color="cyan"].active::before { border-color: var(--node-cyan); }
+        .orbital-node[data-color="blue"].active::before { border-color: var(--node-blue); }
+        .orbital-node[data-color="green"].active::before { border-color: var(--node-green); }
+        .orbital-node[data-color="pink"].active::before { border-color: var(--node-pink); }
+        .orbital-node[data-color="teal"].active::before { border-color: var(--node-teal); }
+
+        @keyframes pulsingRing {
+            0% {
+                width: 100%;
+                height: 100%;
+                opacity: 1;
+                border-width: 4px;
+            }
+            100% {
+                width: 220%;
+                height: 220%;
+                opacity: 0;
+                border-width: 2px;
+            }
+        }
+
+        .node-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            transition: transform 0.3s ease;
+        }
+
+        .orbital-node.active .node-icon {
+            transform: scale(1.2);
+        }
+
+        .node-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: color 0.3s ease;
+        }
+
+        .orbital-node[data-color="purple"].active .node-label {
+            color: #000 !important;
+        }
+
+        .orbital-node[data-color="cyan"].active .node-label {
+            color: #000 !important;
+        }
+
+        .orbital-node[data-color="blue"].active .node-label {
+            color: #000 !important;
+        }
+
+        .orbital-node[data-color="green"].active .node-label {
+            color: #000 !important;
+        }
+
+        .orbital-node[data-color="pink"].active .node-label {
+            color: #000 !important;
+        }
+
+        .orbital-node[data-color="teal"].active .node-label {
+            color: #000 !important;
+        }
+
+        /* Connection path styles (SVG arcs) */
+        .connection-paths {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .connection-path {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.25);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 12 8;
+            transition: stroke 0.4s ease, stroke-width 0.4s ease, filter 0.4s ease, stroke-dasharray 0.4s ease;
+        }
+
+        .connection-path.active {
+            stroke: var(--active-color, #00F0FF);
+            stroke-width: 8;
+            stroke-dasharray: none;
+            filter: url(#glowFilter) drop-shadow(0 0 12px var(--active-color, #00F0FF)) drop-shadow(0 0 20px var(--active-color, #00F0FF));
+        }
+
+        .connection-path.done {
+            stroke: var(--done-color, rgba(255, 255, 255, 0.5));
+            stroke-dasharray: none;
+            stroke-width: 5;
+            opacity: 0.7;
+        }
+
+        /* Arrow markers */
+        .arrow-head {
+            fill: rgba(0, 0, 0, 0.4);
+            transition: fill 0.4s ease;
+        }
+
+        .arrow-head.active {
+            fill: var(--active-color, #4db8e8);
+        }
+
+        /* Traveling particle - animated ball along path - ENHANCED */
+        .traveling-particle {
+            z-index: 15;
+            filter: url(#particleGlow) drop-shadow(0 0 16px var(--particle-color, #e55ca0)) drop-shadow(0 0 24px var(--particle-color, #e55ca0));
+        }
+
+        .particle-core {
+            transition: fill 0.4s ease;
+        }
+
+        .particle-glow {
+            transition: stroke 0.4s ease;
+        }
+
+        @keyframes particle-pulse {
+            0%, 100% { r: 22; opacity: 0.5; }
+            50% { r: 28; opacity: 0.8; }
+        }
+
+        .particle-glow {
+            animation: particle-pulse 1.2s ease-in-out infinite;
+        }
+
+        /* Outer glow ring for particle */
+        @keyframes particle-outer-glow {
+            0%, 100% { r: 32; opacity: 0.2; }
+            50% { r: 40; opacity: 0.4; }
+        }
+
+        /* Particle trail effect */
+        .particle-trail {
+            fill: none;
+            stroke: var(--particle-color, #e55ca0);
+            stroke-width: 3;
+            stroke-linecap: round;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .particle-trail.active {
+            opacity: 0.6;
+            animation: trail-fade 1.2s ease-out forwards;
+        }
+
+        @keyframes trail-fade {
+            0% { stroke-dashoffset: 0; opacity: 0.6; }
+            100% { stroke-dashoffset: -200; opacity: 0; }
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 420px;
+            height: calc(100vh - 180px);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 240, 250, 0.95));
+            border: 5px solid #000;
+            border-radius: 20px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            box-shadow: 0 8px 0 #000, 0 12px 24px rgba(0, 0, 0, 0.3);
+            overflow-y: auto;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid rgba(122, 138, 163, 0.2);
+            padding-bottom: 10px;
+        }
+
+        .event-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: #fff;
+            border-radius: 10px;
+            border: 3px solid #000;
+            font-size: 0.72rem;
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 0 #000;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .event-item.active {
+            background: var(--simpson-yellow);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #000;
+        }
+
+        .event-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #000;
+            flex-shrink: 0;
+            border: 2px solid #000;
+        }
+
+        .event-item.active .event-dot {
+            background: #ff0000;
+            animation: dotBlink 0.6s ease infinite;
+        }
+
+        @keyframes dotBlink {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+
+        .active-step {
+            padding: 20px;
+            background: var(--simpson-yellow);
+            border: 4px solid #000;
+            border-radius: 12px;
+            box-shadow: 0 6px 0 #000;
+        }
+
+        .step-status {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: #000;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 800;
+        }
+
+        .step-description {
+            font-size: 0.8rem;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .current-task {
+            padding: 20px;
+            background: #fff;
+            border-radius: 12px;
+            border: 4px solid #000;
+            box-shadow: 0 6px 0 #000;
+        }
+
+        .task-title {
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+
+        .task-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            color: var(--accent-green);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .timer {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--accent-blue);
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(122, 138, 163, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+            border-radius: 2px;
+            animation: progressGrow 2s ease-in-out infinite;
+        }
+
+        @keyframes progressGrow {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 0%; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+                padding: 20px;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 300px;
+            }
+
+            .loop-container {
+                width: 400px;
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <!-- Audio unlock notification - Glassmorphism design -->
+    <div id="audioNotification" style="
+        position: fixed;
+        top: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg,
+            rgba(255, 217, 15, 0.95),
+            rgba(255, 140, 66, 0.95));
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 3px solid rgba(0, 0, 0, 0.3);
+        border-radius: 20px;
+        padding: 18px 32px;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #000;
+        text-align: center;
+        z-index: 10000;
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.25),
+            0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+            0 0 40px rgba(255, 217, 15, 0.4);
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: slideDownBounce 0.6s ease-out, pulseGlow 2s ease-in-out infinite;
+    ">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="
+                font-size: 1.8rem;
+                animation: soundPulse 1.5s ease-in-out infinite;
+                display: inline-block;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            ">🔊</span>
+            <div style="line-height: 1.4;">
+                <div style="font-size: 1rem; margin-bottom: 2px;">Klicka för ljud</div>
+                <div style="font-size: 0.7rem; opacity: 0.8; font-weight: 400;">
+                    Ralph-ljudet aktiveras när du klickar
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes slideDownBounce {
+            0% {
+                transform: translate(-50%, -100px);
+                opacity: 0;
+            }
+            60% {
+                transform: translate(-50%, 10px);
+            }
+            80% {
+                transform: translate(-50%, -5px);
+            }
+            100% {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow:
+                    0 8px 32px rgba(0, 0, 0, 0.25),
+                    0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+                    0 0 40px rgba(255, 217, 15, 0.4);
+            }
+            50% {
+                box-shadow:
+                    0 8px 32px rgba(0, 0, 0, 0.25),
+                    0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+                    0 0 60px rgba(255, 140, 66, 0.6);
+            }
+        }
+
+        @keyframes soundPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        #audioNotification:hover {
+            transform: translateX(-50%) scale(1.05);
+            box-shadow:
+                0 12px 48px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+                0 0 80px rgba(255, 217, 15, 0.6);
+        }
+    </style>
+
+    <header>
+        <div class="logo">
+            <div class="logo-icon"></div>
+            <div>
+                <h1>Agentic Loop Monitor</h1>
+                <div class="subtitle">Real-Time Workflow Visualization</div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <a href="#" class="nav-link active">Waiting</a>
+    </nav>
+
+    <div class="container">
+        <div class="visualization">
+            <div class="loop-container" id="loopContainer">
+                <!-- SVG Connection Arcs and Traveling Particle -->
+                <svg class="connection-paths" viewBox="0 0 650 650" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <!-- Glow filter for enhanced path visibility -->
+                        <filter id="glowFilter" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="4" result="blur"/>
+                            <feMerge>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                        <!-- Strong glow filter for particle -->
+                        <filter id="particleGlow" x="-100%" y="-100%" width="300%" height="300%">
+                            <feGaussianBlur stdDeviation="6" result="blur"/>
+                            <feMerge>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                        <!-- Arrow marker for direction -->
+                        <marker id="arrowMarker" viewBox="0 0 10 10" refX="5" refY="5"
+                                markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head"/>
+                        </marker>
+                        <!-- Active arrow marker (colored) -->
+                        <marker id="arrowMarkerActive" viewBox="0 0 10 10" refX="5" refY="5"
+                                markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head active"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Connection arcs (curved lines between nodes) -->
+                    <g id="connectionArcs">
+                        <!-- Path 0: JIRA (top) to CLAUDE (right-upper) - curves outward right-top -->
+                        <path id="path-0-1" class="connection-path"
+                              d="M 325,65 Q 520,50 572,245"
+                              marker-mid="url(#arrowMarker)"/>
+                        <!-- Path 1: CLAUDE to GITHUB (right-lower) - curves outward right -->
+                        <path id="path-1-2" class="connection-path"
+                              d="M 572,245 Q 620,400 478,535"
+                              marker-mid="url(#arrowMarker)"/>
+                        <!-- Path 2: GITHUB to JULES (left-lower) - curves outward bottom -->
+                        <path id="path-2-3" class="connection-path"
+                              d="M 478,535 Q 325,620 172,535"
+                              marker-mid="url(#arrowMarker)"/>
+                        <!-- Path 3: JULES to ACTIONS (left-upper) - curves outward left -->
+                        <path id="path-3-4" class="connection-path"
+                              d="M 172,535 Q 30,400 78,245"
+                              marker-mid="url(#arrowMarker)"/>
+                        <!-- Path 4: ACTIONS to JIRA (top) - curves outward top-left -->
+                        <path id="path-4-0" class="connection-path"
+                              d="M 78,245 Q 130,50 325,65"
+                              marker-mid="url(#arrowMarker)"/>
+                    </g>
+
+                    <!-- Traveling particle - ENHANCED for visibility -->
+                    <g id="travelingParticle" class="traveling-particle" style="display: none;">
+                        <!-- Outer glow ring -->
+                        <circle class="particle-outer" cx="0" cy="0" r="32"
+                                fill="none" stroke="var(--particle-color, #e55ca0)" stroke-width="2" opacity="0.3"/>
+                        <!-- Main glow -->
+                        <circle class="particle-glow" cx="0" cy="0" r="22"
+                                fill="none" stroke="var(--particle-color, #e55ca0)" stroke-width="4" opacity="0.5"/>
+                        <!-- Core -->
+                        <circle class="particle-core" cx="0" cy="0" r="14"
+                                fill="var(--particle-color, #e55ca0)"/>
+                        <!-- Inner highlight -->
+                        <circle class="particle-inner" cx="0" cy="0" r="6"
+                                fill="rgba(255,255,255,0.9)"/>
+                    </g>
+                </svg>
+
+                <!-- Center image placeholder -->
+                <div class="center-image">
+                    <img src="center-image.png" alt="Center Image" style="display: none;" id="centerImg">
+                    <div class="center-image-placeholder" id="placeholder">
+                        Place your image<br>center-image.png<br>in same folder
+                    </div>
+                </div>
+
+                <!-- Moving dot -->
+                <div class="moving-dot" id="movingDot"></div>
+
+                <!-- Orbital nodes will be positioned by JS -->
+            </div>
+        </div>
+
+        <aside class="sidebar">
+            <div class="section">
+                <div class="section-title">Event Log</div>
+                <div class="event-log" id="eventLog">
+                    <div class="event-item">
+                        <div class="event-dot"></div>
+                        <div>Waiting for events...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Active Step</div>
+                <div class="active-step">
+                    <div class="step-status" id="stepStatus">Idle</div>
+                    <div class="step-description" id="stepDescription">Connecting to monitoring server...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Current Task</div>
+                <div class="current-task">
+                    <div class="task-title" id="taskTitle">Waiting for task...</div>
+                    <div class="task-status">
+                        <div class="status-badge" id="statusBadge">Idle</div>
+                        <div class="timer" id="timer">0:00</div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const nodes = [
+            { id: 'jira', icon: '📋', label: 'JIRA', angle: 270, color: 'purple', cssColor: '#e55ca0' },
+            { id: 'claude', icon: '🤖', label: 'CLAUDE', angle: 342, color: 'cyan', cssColor: '#4db8e8' },
+            { id: 'github', icon: '📤', label: 'GITHUB', angle: 54, color: 'blue', cssColor: '#5a9fd4' },
+            { id: 'jules', icon: '👨‍💻', label: 'JULES', angle: 126, color: 'pink', cssColor: '#ff6b9d' },
+            { id: 'actions', icon: '⚙️', label: 'ACTIONS', angle: 198, color: 'green', cssColor: '#2d8b57' }
+        ];
+
+        // Node positions (calculated from angles at radius 260 from center 325,325)
+        const nodePositions = [
+            { x: 325, y: 65 },     // 0: JIRA (270° - top)
+            { x: 572, y: 245 },    // 1: CLAUDE (342° - right-upper)
+            { x: 478, y: 535 },    // 2: GITHUB (54° - right-lower)
+            { x: 172, y: 535 },    // 3: JULES (126° - left-lower)
+            { x: 78, y: 245 }      // 4: ACTIONS (198° - left-upper)
+        ];
+
+        // Path definitions matching SVG arcs (curved outward for organic flow)
+        // Control points are placed outside the pentagon for smooth outward curves
+        const pathDefinitions = [
+            'M 325,65 Q 520,50 572,245',      // 0→1: JIRA to CLAUDE (curve out right-top)
+            'M 572,245 Q 620,400 478,535',    // 1→2: CLAUDE to GITHUB (curve out right)
+            'M 478,535 Q 325,620 172,535',    // 2→3: GITHUB to JULES (curve out bottom)
+            'M 172,535 Q 30,400 78,245',      // 3→4: JULES to ACTIONS (curve out left)
+            'M 78,245 Q 130,50 325,65'        // 4→0: ACTIONS to JIRA (curve out top-left)
+        ];
+
+        const container = document.getElementById('loopContainer');
+        const movingDot = document.getElementById('movingDot');
+        const eventLog = document.getElementById('eventLog');
+
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let currentActiveNode = null;
+        let previousNodeIndex = -1;
+        let particleAnimation = null;
+        const radius = 260;
+        const centerX = 325;
+        const centerY = 325;
+
+        // Ralph sound - used for particle visit animation
+        const ralphSound = new Audio('Ralph.mp3');
+        ralphSound.volume = 0.5;
+        ralphSound.preload = 'auto';
+        ralphSound.load();
+        let audioUnlocked = false;
+
+        // Unlock audio on first user interaction (browser autoplay policy)
+        function unlockAudio() {
+            if (audioUnlocked) return;
+
+            // Play and immediately pause to unlock
+            ralphSound.play().then(() => {
+                ralphSound.pause();
+                ralphSound.currentTime = 0;
+                audioUnlocked = true;
+                console.log('🔊 Audio unlocked!');
+
+                // Remove listeners now that unlock succeeded
+                document.removeEventListener('click', unlockAudio);
+                document.removeEventListener('keydown', unlockAudio);
+
+                // Remove the notification
+                const notification = document.getElementById('audioNotification');
+                if (notification) {
+                    notification.style.opacity = '0';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }).catch(err => {
+                console.log('Audio unlock failed, will retry on next interaction:', err);
+            });
+        }
+
+        // Listen for any click/key to unlock audio (retry until success)
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('keydown', unlockAudio);
+
+        // Create nodes
+        nodes.forEach((node) => {
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'orbital-node';
+            nodeEl.id = node.id;
+            nodeEl.setAttribute('data-color', node.color);
+
+            const angleRad = (node.angle * Math.PI) / 180;
+            const x = centerX + radius * Math.cos(angleRad);
+            const y = centerY + radius * Math.sin(angleRad);
+
+            nodeEl.style.left = `${x}px`;
+            nodeEl.style.top = `${y}px`;
+            nodeEl.style.transform = 'translate(-50%, -50%)';
+
+            nodeEl.innerHTML = `
+                <div class="node-icon">${node.icon}</div>
+                <div class="node-label">${node.label}</div>
+            `;
+
+            container.appendChild(nodeEl);
+        });
+
+        // ============================================
+        // Particle Animation Functions
+        // ============================================
+
+        // Get point along a quadratic bezier curve at t (0-1)
+        function getPointOnQuadraticBezier(p0, p1, p2, t) {
+            const x = Math.pow(1 - t, 2) * p0.x + 2 * (1 - t) * t * p1.x + Math.pow(t, 2) * p2.x;
+            const y = Math.pow(1 - t, 2) * p0.y + 2 * (1 - t) * t * p1.y + Math.pow(t, 2) * p2.y;
+            return { x, y };
+        }
+
+        // Parse SVG path "M x,y Q cx,cy ex,ey" into points
+        function parsePath(pathStr) {
+            const parts = pathStr.match(/[\d.]+/g).map(Number);
+            return {
+                start: { x: parts[0], y: parts[1] },
+                control: { x: parts[2], y: parts[3] },
+                end: { x: parts[4], y: parts[5] }
+            };
+        }
+
+        // Position particle at a specific node
+        function positionParticleAtNode(nodeIndex) {
+            const particle = document.getElementById('travelingParticle');
+            const pos = nodePositions[nodeIndex];
+            const node = nodes[nodeIndex];
+
+            particle.style.display = 'block';
+            particle.style.setProperty('--particle-color', node.cssColor);
+            particle.querySelector('.particle-core').style.fill = node.cssColor;
+            particle.querySelector('.particle-glow').style.stroke = node.cssColor;
+            particle.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+        }
+
+        // Animate particle along a path from one node to another
+        function animateParticleAlongPath(fromIndex, toIndex, duration = 1200) {
+            const particle = document.getElementById('travelingParticle');
+            const pathIndex = fromIndex;
+            const pathStr = pathDefinitions[pathIndex];
+            const targetNode = nodes[toIndex];
+
+            // Cancel any existing animation
+            if (particleAnimation) {
+                cancelAnimationFrame(particleAnimation);
+            }
+
+            // Parse the path
+            const path = parsePath(pathStr);
+
+            // Set particle color to target node color
+            particle.style.display = 'block';
+            particle.style.setProperty('--particle-color', targetNode.cssColor);
+            particle.querySelector('.particle-core').style.fill = targetNode.cssColor;
+            particle.querySelector('.particle-glow').style.stroke = targetNode.cssColor;
+
+            // Highlight the active connection path
+            updateConnectionPaths(fromIndex, toIndex);
+
+            // Animate
+            const startTime = performance.now();
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Ease-out cubic for smooth deceleration
+                const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+                // Get position on curve
+                const pos = getPointOnQuadraticBezier(path.start, path.control, path.end, easedProgress);
+
+                // Update particle position
+                particle.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+
+                if (progress < 1) {
+                    particleAnimation = requestAnimationFrame(animate);
+                } else {
+                    // Animation complete - ensure particle is at exact end position
+                    particle.setAttribute('transform', `translate(${path.end.x}, ${path.end.y})`);
+                    particleAnimation = null;
+                }
+            }
+
+            particleAnimation = requestAnimationFrame(animate);
+        }
+
+        // Special animation: Particle visits Ralph and triggers sound
+        function animateParticleToRalph(fromPos, callback) {
+            console.log('🎯 Particle visiting Ralph!', fromPos);
+            const particle = document.getElementById('travelingParticle');
+            const centerPos = { x: centerX, y: centerY };
+
+            // Calculate control point for curved path (slight arc)
+            const controlPoint = {
+                x: (fromPos.x + centerPos.x) / 2,
+                y: (fromPos.y + centerPos.y) / 2 - 50  // Arc upward
+            };
+
+            const duration = 400; // Fast visit
+            const startTime = performance.now();
+
+            function animateToCenter(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+                const pos = getPointOnQuadraticBezier(fromPos, controlPoint, centerPos, easedProgress);
+                particle.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateToCenter);
+                } else {
+                    // Arrived at Ralph - play sound!
+                    console.log('🎵 Playing AMAZING RALPH sound!');
+                    if (audioUnlocked) {
+                        ralphSound.currentTime = 0;
+                        ralphSound.play().then(() => {
+                            console.log('✅ Sound played successfully!');
+                        }).catch(err => console.log('❌ Audio error:', err));
+                    } else {
+                        console.log('⚠️ Audio not unlocked yet - click page to enable sound');
+                    }
+
+                    // Brief pause then return
+                    setTimeout(() => animateReturnFromRalph(centerPos, fromPos, callback), 300);
+                }
+            }
+
+            requestAnimationFrame(animateToCenter);
+        }
+
+        function animateReturnFromRalph(fromPos, toPos, callback) {
+            const particle = document.getElementById('travelingParticle');
+
+            const controlPoint = {
+                x: (fromPos.x + toPos.x) / 2,
+                y: (fromPos.y + toPos.y) / 2 - 50
+            };
+
+            const duration = 400;
+            const startTime = performance.now();
+
+            function animateBack(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+                const pos = getPointOnQuadraticBezier(fromPos, controlPoint, toPos, easedProgress);
+                particle.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateBack);
+                } else {
+                    if (callback) callback();
+                }
+            }
+
+            requestAnimationFrame(animateBack);
+        }
+
+        // Update connection path styles
+        function updateConnectionPaths(fromIndex, toIndex) {
+            const targetNode = nodes[toIndex];
+
+            document.querySelectorAll('.connection-path').forEach((pathEl, i) => {
+                pathEl.classList.remove('active', 'done');
+                pathEl.style.setProperty('--active-color', targetNode.cssColor);
+
+                // Mark paths before current as "done"
+                if (i < fromIndex) {
+                    pathEl.classList.add('done');
+                }
+                // Mark current path as "active"
+                if (i === fromIndex) {
+                    pathEl.classList.add('active');
+                    pathEl.setAttribute('marker-mid', 'url(#arrowMarkerActive)');
+                } else {
+                    pathEl.setAttribute('marker-mid', 'url(#arrowMarker)');
+                }
+            });
+        }
+
+        // Reset all connection paths to default state
+        function resetConnectionPaths() {
+            document.querySelectorAll('.connection-path').forEach((pathEl) => {
+                pathEl.classList.remove('active', 'done');
+                pathEl.setAttribute('marker-mid', 'url(#arrowMarker)');
+            });
+        }
+
+        // Get node index by id
+        function getNodeIndex(nodeId) {
+            return nodes.findIndex(n => n.id === nodeId);
+        }
+
+        // WebSocket connection
+        const pageOrigin = window.location.origin;
+        const socketUrl = pageOrigin && pageOrigin !== 'null'
+            ? `${pageOrigin}/monitor`
+            : 'http://localhost:5000/monitor';
+        const socket = io(socketUrl, {
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to monitoring server');
+            document.getElementById('stepDescription').textContent = 'Connected to monitoring server';
+        });
+
+        socket.on('state_update', (state) => {
+            console.log('Received state update:', state);
+            updateDashboard(state);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from monitoring server');
+            document.getElementById('stepDescription').textContent = 'Disconnected - attempting reconnect...';
+        });
+
+        socket.on('error', (error) => {
+            console.error('WebSocket error:', error);
+        });
+
+        // Update dashboard with real-time data
+        function updateDashboard(state) {
+            if (!state) return;
+
+            // Update active nodes
+            updateActiveNodes(state);
+
+            // Update event log
+            updateEventLog(state.event_log);
+
+            // Update active step
+            updateActiveStep(state);
+
+            // Update task info
+            updateTaskInfo(state.task_info);
+        }
+
+        function updateActiveNodes(state) {
+            if (!state.nodes) return;
+
+            // Remove active class from all nodes
+            document.querySelectorAll('.orbital-node').forEach(n => n.classList.remove('active'));
+
+            // Add active class to current node
+            if (state.current_node) {
+                const activeNodeEl = document.getElementById(state.current_node);
+                if (activeNodeEl) {
+                    activeNodeEl.classList.add('active');
+                    currentActiveNode = state.current_node;
+
+                    // Get current node index
+                    const currentIndex = getNodeIndex(state.current_node);
+
+                    // Move dot to active node (legacy - keep for fallback)
+                    const nodeData = nodes.find(n => n.id === state.current_node);
+                    if (nodeData) {
+                        moveDotToNode(nodeData.angle);
+                        movingDot.classList.add('hidden'); // Hide legacy dot, use particle instead
+                    }
+
+                    // Animate particle along path if moving forward in sequence
+                    if (previousNodeIndex >= 0 && currentIndex !== previousNodeIndex) {
+                        // Calculate path index - handle wrap-around (ACTIONS -> JIRA)
+                        if (currentIndex > previousNodeIndex ||
+                            (previousNodeIndex === 4 && currentIndex === 0)) {
+
+                            // Special case: When Claude becomes active, visit Ralph!
+                            if (currentIndex === 1) { // Claude is index 1
+                                animateParticleAlongPath(previousNodeIndex, currentIndex, 1200);
+                                // After normal animation completes, visit Ralph
+                                setTimeout(() => {
+                                    const claudePos = nodePositions[1];
+                                    animateParticleToRalph(claudePos, null);
+                                }, 1300); // Wait for path animation to finish
+                            } else {
+                                animateParticleAlongPath(previousNodeIndex, currentIndex);
+                            }
+                        } else {
+                            // Moving backwards or jumping - just position at node
+                            positionParticleAtNode(currentIndex);
+                            resetConnectionPaths();
+                        }
+                    } else if (previousNodeIndex === -1) {
+                        // First activation - position particle at node
+                        positionParticleAtNode(currentIndex);
+                    }
+
+                    previousNodeIndex = currentIndex;
+                }
+            } else {
+                // No current node - hide particle and reset paths
+                const particle = document.getElementById('travelingParticle');
+                if (particle) particle.style.display = 'none';
+                resetConnectionPaths();
+                previousNodeIndex = -1;
+            }
+        }
+
+        function moveDotToNode(angle) {
+            const angleRad = (angle * Math.PI) / 180;
+            const x = centerX + radius * Math.cos(angleRad);
+            const y = centerY + radius * Math.sin(angleRad);
+
+            movingDot.style.left = `${x}px`;
+            movingDot.style.top = `${y}px`;
+            movingDot.style.transform = 'translate(-50%, -50%)';
+        }
+
+        function updateEventLog(events) {
+            if (!events || events.length === 0) return;
+
+            eventLog.innerHTML = '';
+
+            // Show last 5 events
+            const recentEvents = events.slice(-5);
+            recentEvents.forEach((event, index) => {
+                const eventItem = document.createElement('div');
+                eventItem.className = 'event-item';
+                if (index === recentEvents.length - 1) {
+                    eventItem.classList.add('active');
+                }
+
+                const timestamp = new Date(event.timestamp).toLocaleTimeString();
+                eventItem.innerHTML = `
+                    <div class="event-dot"></div>
+                    <div>
+                        <div style="font-weight: bold; text-transform: uppercase;">${event.node}</div>
+                        <div>${event.message || 'Active'}</div>
+                        <div style="font-size: 0.6rem; color: #999;">${timestamp}</div>
+                    </div>
+                `;
+
+                eventLog.appendChild(eventItem);
+            });
+        }
+
+        function updateActiveStep(state) {
+            const stepStatus = document.getElementById('stepStatus');
+            const stepDescription = document.getElementById('stepDescription');
+
+            if (state.current_node) {
+                const stepTexts = {
+                    'jira': { status: 'Fetching', desc: 'Retrieving ticket from JIRA...' },
+                    'claude': { status: 'Coding', desc: 'Claude is writing the solution...' },
+                    'github': { status: 'Pushing', desc: 'Pushing changes to GitHub...' },
+                    'jules': { status: 'Reviewing', desc: 'Jules is reviewing the code...' },
+                    'actions': { status: 'Testing', desc: 'Running GitHub Actions...' }
+                };
+
+                const text = stepTexts[state.current_node];
+                if (text) {
+                    stepStatus.textContent = text.status;
+                    stepDescription.textContent = text.desc;
+                }
+            } else {
+                stepStatus.textContent = 'Idle';
+                stepDescription.textContent = 'Waiting for workflow...';
+            }
+        }
+
+        function updateTaskInfo(taskInfo) {
+            if (!taskInfo) return;
+
+            document.getElementById('taskTitle').textContent = taskInfo.title || 'Waiting for task...';
+            document.getElementById('statusBadge').textContent = (taskInfo.status || 'idle').toUpperCase();
+
+            // Update timer if task is running
+            if (taskInfo.status === 'running' && taskInfo.start_time) {
+                if (!timerInterval) {
+                    timerInterval = setInterval(updateTimer, 1000);
+                }
+            } else {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    timerSeconds = 0;
+                }
+            }
+        }
+
+        function updateTimer() {
+            timerSeconds++;
+            const minutes = Math.floor(timerSeconds / 60);
+            const seconds = timerSeconds % 60;
+            document.getElementById('timer').textContent =
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Initialize - hide legacy moving dot (using particle instead)
+        movingDot.classList.add('hidden');
+        movingDot.style.display = 'none';
+
+        // Initialize particle (hidden until first state update)
+        const particle = document.getElementById('travelingParticle');
+        if (particle) {
+            particle.style.display = 'none';
+        }
+
+        // Handle center image loading
+        const centerImg = document.getElementById('centerImg');
+        const placeholder = document.getElementById('placeholder');
+
+        centerImg.onload = function() {
+            centerImg.style.display = 'block';
+            placeholder.style.display = 'none';
+        };
+
+        centerImg.onerror = function() {
+            centerImg.style.display = 'none';
+            placeholder.style.display = 'block';
+        };
+
+        centerImg.src = 'center-image.png';
+
+        // Add click handler for sound (ralphSound is defined at top of script)
+        const centerImage = document.querySelector('.center-image');
+
+        centerImage.addEventListener('click', function() {
+            ralphSound.currentTime = 0;
+            ralphSound.play().catch(err => {
+                console.log('Audio play failed:', err);
+            });
+        });
+
+        centerImage.style.cursor = 'pointer';
+    </script>
+</body>
+</html>
