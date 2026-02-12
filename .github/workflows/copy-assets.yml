@@ -14,18 +14,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Copy binary assets from static/ to pages/
+
+      - name: Copy all binary assets from static/ to pages/
         run: |
           cp static/Ralph.mp3 pages/Ralph.mp3
           cp static/center-image.png pages/center-image.png
           cp static/background.jpg pages/background.jpg
-      
+
       - name: Check for changes
         id: check
         run: |
           git diff --quiet pages/ && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
-      
+
       - name: Commit and push
         if: steps.check.outputs.changed == 'true'
         run: |
