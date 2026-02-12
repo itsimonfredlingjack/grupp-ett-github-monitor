@@ -1,0 +1,25 @@
+name: Copy Static Assets to Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copy-assets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Copy binary assets
+        run: |
+          cp static/Ralph.mp3 pages/Ralph.mp3
+          cp static/center-image.png pages/center-image.png
+      
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pages/Ralph.mp3 pages/center-image.png
+          git commit -m "Copy binary assets from static/ to pages/"
+          git push
